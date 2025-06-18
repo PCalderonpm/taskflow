@@ -357,12 +357,86 @@
             font-size: 0.9rem;
             color: #718096;
         }
+
+        .login-tab {
+            border-bottom: 3px solid #667eea !important;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 5px;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- Pantalla de Login -->
+    <div id="loginScreen" class="container" style="display: none;">
+        <div class="panel" style="max-width: 500px; margin: 50px auto;">
+            <h2 style="text-align: center; margin-bottom: 30px;">🔐 TaskFlow - Acceso</h2>
+            
+            <!-- Tabs para Login/Registro -->
+            <div style="display: flex; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0;">
+                <button id="loginTab" class="btn btn-secondary" style="flex: 1; border-radius: 0;" onclick="showLoginTab()">Iniciar Sesión</button>
+                <button id="registerTab" class="btn btn-secondary" style="flex: 1; border-radius: 0;" onclick="showRegisterTab()">Crear Cuenta</button>
+            </div>
+            
+            <!-- Formulario de Login -->
+            <div id="loginForm">
+                <form onsubmit="login(event)">
+                    <div class="form-group">
+                        <label>Usuario</label>
+                        <input type="text" id="loginUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Contraseña</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Entrar</button>
+                </form>
+            </div>
+            
+            <!-- Formulario de Registro -->
+            <div id="registerForm" style="display: none;">
+                <form onsubmit="register(event)">
+                    <div class="form-group">
+                        <label>Usuario</label>
+                        <input type="text" id="registerUsername" required minlength="3">
+                        <small style="color: #718096;">Mínimo 3 caracteres</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Contraseña</label>
+                        <input type="password" id="registerPassword" required minlength="4">
+                        <small style="color: #718096;">Mínimo 4 caracteres</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Confirmar Contraseña</label>
+                        <input type="password" id="confirmPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Crear Cuenta</button>
+                </form>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 10px; font-size: 14px; color: #4a5568;">
+                <strong>💡 Información:</strong><br>
+                • Tus datos se guardan localmente en tu navegador<br>
+                • Cada usuario tiene su espacio privado<br>
+                • No olvides tu contraseña (no hay recuperación)
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Aplicación Principal -->
+    <div id="appContent" class="container" style="display: none;">
         <div class="header">
-            <h1>🚀 TaskFlow</h1>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div>
+                    <h1>🚀 TaskFlow</h1>
+                    <small style="color: #718096;">Bienvenido, <span id="currentUser"></span></small>
+                </div>
+                <button class="btn btn-secondary" onclick="logout()" style="margin-left: auto;">🚪 Cerrar Sesión</button>
+            </div>
             <div class="header-controls">
                 <button class="btn btn-primary" onclick="openTaskModal()">➕ Nueva Tarea</button>
                 <button class="btn btn-secondary" onclick="openTimeBlockModal()">⏰ Time Block</button>
@@ -487,17 +561,160 @@
 
     <script>
         // Estado de la aplicación
-        let tasks = JSON.parse(localStorage.getItem('taskflow-tasks') || '[]');
-        let timeBlocks = JSON.parse(localStorage.getItem('taskflow-timeblocks') || '[]');
+        let tasks = [];
+        let timeBlocks = [];
         let currentDate = new Date();
         let selectedDate = null;
+        let currentUser = null;
 
-        // Inicialización
-        document.addEventListener('DOMContentLoaded', function() {
+        // Sistema de autenticación
+        function initAuth() {
+            const users = JSON.parse(localStorage.getItem('taskflow-users') || '{}');
+            const savedUser = localStorage.getItem('taskflow-current-user');
+            
+            if (savedUser && users[savedUser]) {
+                currentUser = savedUser;
+                loadUserData();
+                showApp();
+            } else {
+                showLogin();
+            }
+        }
+
+        function showLogin() {
+            document.getElementById('loginScreen').style.display = 'block';
+            document.getElementById('appContent').style.display = 'none';
+            showLoginTab();
+        }
+
+        function showApp() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('appContent').style.display = 'block';
+            document.getElementById('currentUser').textContent = currentUser;
             renderTasks();
             renderCalendar();
             updateStats();
             setCurrentDateInput();
+        }
+
+        function showLoginTab() {
+            document.getElementById('loginTab').className = 'btn btn-primary';
+            document.getElementById('registerTab').className = 'btn btn-secondary';
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+        }
+
+        function showRegisterTab() {
+            document.getElementById('loginTab').className = 'btn btn-secondary';
+            document.getElementById('registerTab').className = 'btn btn-primary';
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+        }
+
+        function login(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            
+            const users = JSON.parse(localStorage.getItem('taskflow-users') || '{}');
+            
+            if (users[username] && users[username].password === hashPassword(password)) {
+                currentUser = username;
+                localStorage.setItem('taskflow-current-user', currentUser);
+                loadUserData();
+                showApp();
+            } else {
+                alert('Usuario o contraseña incorrectos');
+            }
+        }
+
+        function register(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('registerUsername').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (password !== confirmPassword) {
+                alert('Las contraseñas no coinciden');
+                return;
+            }
+            
+            const users = JSON.parse(localStorage.getItem('taskflow-users') || '{}');
+            
+            if (users[username]) {
+                alert('El usuario ya existe');
+                return;
+            }
+            
+            // Crear nuevo usuario
+            users[username] = {
+                password: hashPassword(password),
+                createdAt: new Date().toISOString(),
+                tasks: [],
+                timeBlocks: []
+            };
+            
+            localStorage.setItem('taskflow-users', JSON.stringify(users));
+            
+            alert('Cuenta creada exitosamente. Ahora puedes iniciar sesión.');
+            showLoginTab();
+            
+            // Limpiar formulario
+            document.getElementById('registerForm').reset();
+        }
+
+        function logout() {
+            if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+                localStorage.removeItem('taskflow-current-user');
+                currentUser = null;
+                tasks = [];
+                timeBlocks = [];
+                showLogin();
+            }
+        }
+
+        function hashPassword(password) {
+            // Hash simple para demostración (en producción usar bcrypt o similar)
+            let hash = 0;
+            for (let i = 0; i < password.length; i++) {
+                const char = password.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convertir a entero de 32 bits
+            }
+            return hash.toString();
+        }
+
+        function loadUserData() {
+            if (!currentUser) return;
+            
+            const users = JSON.parse(localStorage.getItem('taskflow-users') || '{}');
+            const userData = users[currentUser];
+            
+            if (userData) {
+                tasks = userData.tasks || [];
+                timeBlocks = userData.timeBlocks || [];
+            }
+        }
+
+        function saveUserData() {
+            if (!currentUser) return;
+            
+            const users = JSON.parse(localStorage.getItem('taskflow-users') || '{}');
+            
+            if (users[currentUser]) {
+                users[currentUser].tasks = tasks;
+                users[currentUser].timeBlocks = timeBlocks;
+                users[currentUser].lastUpdated = new Date().toISOString();
+                
+                localStorage.setItem('taskflow-users', JSON.stringify(users));
+            }
+        }
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            initAuth();
         });
 
         // Funciones de tareas
@@ -824,16 +1041,17 @@
 
         // Funciones de persistencia
         function saveTasks() {
-            localStorage.setItem('taskflow-tasks', JSON.stringify(tasks));
+            saveUserData();
         }
 
         function saveTimeBlocks() {
-            localStorage.setItem('taskflow-timeblocks', JSON.stringify(timeBlocks));
+            saveUserData();
         }
 
         // Funciones de importar/exportar
         function exportData() {
             const data = {
+                user: currentUser,
                 tasks: tasks,
                 timeBlocks: timeBlocks,
                 exportDate: new Date().toISOString()
@@ -843,7 +1061,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `taskflow-backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `taskflow-${currentUser}-backup-${new Date().toISOString().split('T')[0]}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -859,11 +1077,10 @@
                 try {
                     const data = JSON.parse(e.target.result);
                     
-                    if (confirm('¿Quieres reemplazar todos los datos actuales con los datos importados?')) {
+                    if (confirm('¿Quieres reemplazar todos tus datos actuales con los datos importados?')) {
                         tasks = data.tasks || [];
                         timeBlocks = data.timeBlocks || [];
-                        saveTasks();
-                        saveTimeBlocks();
+                        saveUserData();
                         renderTasks();
                         renderCalendar();
                         updateStats();
